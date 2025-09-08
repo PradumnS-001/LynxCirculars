@@ -2,3 +2,4 @@
 .env
 Circulars/*/*
 __pycache__
+indexdir/
