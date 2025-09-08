@@ -12,5 +12,5 @@ pip install -r requirements.txt
 Example:
 ```
 from sql import append_data
-append_data("Admin", "CircularOne.pdf"
+append_data("Admin", "CircularOne.pdf")
 ```
