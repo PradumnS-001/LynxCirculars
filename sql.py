@@ -7,7 +7,7 @@ from datetime import date
 
 #--- Loading the envoirnment variables from .env ---#
 dotenv.load_dotenv()
-password = os.getenv("USER_PASSWORD")
+password = os.getenv("PASSWORD")
 user = os.getenv("USER")
 host = os.getenv("HOST")
 dbname = os.getenv("DB_NAME")
