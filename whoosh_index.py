@@ -3,31 +3,30 @@ from psycopg2 import OperationalError
 import os
 from dotenv import load_dotenv
 
-def check_connection_and_connect(dbname, user, password, host):
-    """
-    
-    """
+def check_connection_and_connect(dbname, user, password, host, port):
     try:
         conn = psycopg2.connect(
             dbname=dbname,
             user=user,
             password=password,
-            host=host
+            host=host,
+            port=port
         )
         print("Connection successful!")
         return conn
     except OperationalError as e:
         print(f"Error: {e}")
         print("Unable to connect to the PostgreSQL server")
+        exit()
 
 # === Load Environment variables ===
 load_dotenv()
 user = os.getenv("USER")
 dbname = os.getenv("DB_NAME")
-user = os.getenv("USER")
 password = os.getenv("PASSWORD")
 host = os.getenv("HOST")
-conn = check_connection_and_connect(dbname=dbname, user=user, password=password, host=host)
+port = os.getenv("PORT")
+conn = check_connection_and_connect(dbname=dbname, user=user, password=password, host=host, port=port)
 
 cur = conn.cursor()
 cur.execute("SELECT * FROM students;")
