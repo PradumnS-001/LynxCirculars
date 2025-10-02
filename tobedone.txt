@@ -1,0 +1,18 @@
+-- Enable pgvector extension
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Metadata table
+CREATE TABLE IF NOT EXISTS metadata (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    department TEXT NOT NULL,
+    upload_date DATE
+);
+
+-- Content table
+CREATE TABLE IF NOT EXISTS content (
+    id SERIAL PRIMARY KEY,
+    metadata_id INT NOT NULL REFERENCES metadata(id) ON DELETE CASCADE,
+    info TEXT[] NOT NULL,
+    embedding VECTOR(784)
+);

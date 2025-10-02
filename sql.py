@@ -1,5 +1,5 @@
 #--- Importing necessary modules ---#
-import psycopg2
+from supabase import create_client, Client
 from dotenv import load_dotenv
 import os
 import fitz
@@ -8,14 +8,20 @@ from PIL import Image
 import io
 from datetime import date
 from langchain.text_splitter import CharacterTextSplitter
+from langchain_community.embeddings import HuggingFaceEmbeddings
+import torch
 import logging
 
-#--- Loading the envoirnment variables from .env ---#
+#--- Loading environment variables from .env ---#
 load_dotenv()
-password = os.getenv("PASSWORD")
-user = os.getenv("USER")
-host = os.getenv("HOST")
-dbname = os.getenv("DATABASE_NAME")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Sentence-Transformer
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model_name = ""
 
 # to split the text before appending
 splitter = CharacterTextSplitter(
@@ -25,127 +31,98 @@ splitter = CharacterTextSplitter(
 )
 logging.basicConfig(filename='app.log', level=logging.INFO)
 
-#--- Function to create tables if they don't exist already ---#
-def create_table(con, psql):
-    
-    try: # To catch any unexpected error
-        
-        # Creates metadata table
-        psql.execute("""
-                    CREATE TABLE IF NOT EXISTS metadata(
-                        id SERIAL PRIMARY KEY,
-                        title TEXT NOT NULL,
-                        department TEXT NOT NULL,
-                        upload_date DATE
-                    );
-                    """)
-        # Creates content table
-        psql.execute("""
-                    CREATE TABLE IF NOT EXISTS content(
-                        id SERIAL PRIMARY KEY,
-                        metadata_id INT NOT NULL,
-                        info TEXT[] NOT NULL,
-                        
-                        FOREIGN KEY (metadata_id) REFERENCES metadata(id) ON DELETE CASCADE
-                    );
-                    """)
-        # Commits
-        con.commit()
-        
-    # Catch error and print it
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        logging.error(f"Error : {str(e)}")
-    
+
 #--- Function to insert pdf in the database ---#
 def append_data(*record):
     
+    
+
     # Ensure environment variables are set
-    if not all([password, user, host, dbname]):
-        print("Error: Missing environment variables.")
-        logging.error("The envoirnment variables are not suffecient enough")
+    if not all([SUPABASE_URL, SUPABASE_KEY]):
+        print("Error: Missing Supabase environment variables.")
+        logging.error("Supabase environment variables not found")
         return
-    
-    # Connecting to the database
-    with psycopg2.connect(dbname=dbname, user=user, password=password, host=host) as con:
-        with con.cursor() as psql:
-    
-            # Making sure tables exist
-            create_table(con=con, psql=psql)
-            
-            # Iterating through the record
-            for item in record:
-                
-                try: # To catch any unexpected error
-                
-                    # Unpacking tuple
-                    department, pdf = item
-                    PATH = os.path.join("Circulars", department, pdf)
-                    
-                    # Check if path exists
-                    if not os.path.exists(PATH):
-                        print(f"PDF not found: {PATH}")
-                        logging.warning(f"PDF doesn't exist: {pdf}")
-                        continue
-                    
-                    # Parse pdf
-                    text = ""
-                    with fitz.open(PATH) as doc:
-                        for page in doc:
-                            # Extract embedded text
-                            page_text = page.get_text("text").strip()
-                            if page_text:
-                                text += page_text + "\n"
 
-                            # Extract inline images and OCR them
-                            for img in page.get_images(full=True):
-                                image_bytes = doc.extract_image(img[0])["image"]
+    # Iterating through the record
+    for item in record:
 
-                                pil_img = Image.open(io.BytesIO(image_bytes))
-                                ocr_text = pytesseract.image_to_string(pil_img, lang="eng").strip()
-                                if ocr_text:
-                                    ocr_text = " ".join(ocr_text.split())
-                                    text += ocr_text + "\n"
-                                
-                    # Check if the pdf is empty
-                    text = text.strip()
-                    if not text:
-                        print(f"PDF {PATH} is empty")
-                        logging.warning(f"Skipping empty PDF: {pdf}")
-                        continue
-                            
-                    current_date = date.today().strftime("%Y-%m-%d")
-                    chunks = splitter.split_text(text)
-                    
-                    # Metadata Query
-                    meta_query = """
-                        INSERT INTO metadata (title, department, upload_date)
-                        VALUES (%s, %s, %s)
-                        RETURNING id;
-                    """
-                    
-                    # Content Query
-                    con_query = """
-                        INSERT INTO content (metadata_id, info)
-                        VALUES (%s, %s);
-                    """
-                    # Appending data
-                    psql.execute(meta_query, (pdf, department, current_date))
-                    metadata_id = psql.fetchone()[0]
-                    psql.execute(con_query, (metadata_id, chunks))
-                    
-                    # Commits
-                    con.commit()
-                    print(f"{PATH} has been appended successfully!!")
-                    
-                except Exception as e:
-                    print(f"An error occurred: {e}")
-                    logging.error(f"Error processing {pdf} from department {department}: {str(e)}")
+        try:  # To catch any unexpected error
+
+            # Unpacking tuple
+            department, pdf = item
+            temp, department = department, "all_pdfs"
+            PATH = os.path.join("Circulars", department, pdf)
+
+            # Check if path exists
+            if not os.path.exists(PATH):
+                print(f"PDF not found: {PATH}")
+                logging.warning(f"PDF doesn't exist: {pdf}")
+                continue
+
+            # Parse pdf
+            text = ""
+            with fitz.open(PATH) as doc:
+                for page in doc:
+                    # Extract embedded text
+                    page_text = page.get_text("text").strip()
+                    if page_text:
+                        text += page_text + "\n"
+
+                    # Extract inline images and OCR them
+                    for img in page.get_images(full=True):
+                        image_bytes = doc.extract_image(img[0])["image"]
+
+                        pil_img = Image.open(io.BytesIO(image_bytes))
+                        ocr_text = pytesseract.image_to_string(pil_img, lang="eng").strip()
+                        if ocr_text:
+                            ocr_text = " ".join(ocr_text.split())
+                            text += ocr_text + "\n"
+
+            # Check if the pdf is empty
+            text = text.strip()
+            if not text:
+                print(f"PDF {PATH} is empty")
+                logging.warning(f"Skipping empty PDF: {pdf}")
+                continue
+
+            current_date = date.today().strftime("%Y-%m-%d")
+            chunks = splitter.split_text(text)
+            department = temp
+
+            # Insert into metadata
+            meta_response = supabase.table("metadata").insert({
+                "title": pdf,
+                "department": department,
+                "upload_date": current_date
+            }).execute()
+
+            if meta_response.error:
+                logging.error(f"Metadata insert error: {meta_response.error}")
+                continue
+
+            metadata_id = meta_response.data[0]["id"]
+
+            # Insert into content
+            content_response = supabase.table("content").insert({
+                "metadata_id": metadata_id,
+                "info": chunks
+            }).execute()
+
+            if content_response.error:
+                logging.error(f"Content insert error: {content_response.error}")
+                continue
+
+            print(f"{PATH} has been appended successfully!!")
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            logging.error(f"Error processing {pdf} from department {department}: {str(e)}")
 
 
 # Main function        
 def main():
     pass
-        
+
+
 if __name__ == "__main__":
     main()
