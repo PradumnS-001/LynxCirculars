@@ -1,5 +1,6 @@
 .venv
 .env
-Circulars/*/*
 __pycache__
 indexdir/
+app.log
+test.py
