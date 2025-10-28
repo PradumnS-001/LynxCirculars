@@ -271,25 +271,45 @@ def create_database(*args, **kwargs):
     
 # To completely delete the entire database
 def nuke_database(*args, **kwargs):
-    
-    conn = _check_connection_and_connect(dbname=dbname, user=user, password=password, host=host, port=port)
-    
+    """
+*** HIGHLY DANGEROUS!! USE AT YOUR OWN RISK!! ***
+CAUSES UNCONTROLLED CATASTROPHE! >:)
+DROPS THE ENTIRE DATABASE
+DO NOT USE UNLESS YOU ARE ABSOLUTELY SURE WHATEVER YOU ARE DOING IS WORTH-IT!!
+    """
+    try:
+        conn = _check_connection_and_connect(
+            dbname=dbname, user=user, password=password, host=host, port=port
+        )
+    except Exception as e:
+        print(f"Error connecting to database: {e}")
+        logging.error(f"Connection error: {e}")
+        return
+
     if not conn:
         print("Error connecting!")
         logging.info("Connection Error!")
         return
-    
-    sql = "TRUNCATE TABLE metadata CASCADE;"
+
+    # Drop tables instead of truncating
+    sql = """
+    DROP TABLE IF EXISTS metadata CASCADE;
+    DROP TABLE IF EXISTS content CASCADE;
+    """
+
     try:
         with conn.cursor() as cur:
             cur.execute(sql)
-            conn.commit() # Commit the transaction
-            print("Successfully truncated metadata and content tables.")
-            logging.info("Truncated metadata and content tables.")
+            conn.commit()
+            print("Successfully dropped metadata and content tables.")
+            logging.info("Dropped metadata and content tables.")
     except (Exception, psycopg2.Error) as error:
-        print(f"Error while truncating database: {error}")
-        logging.error(f"Error truncating database: {error}")
-        conn.rollback() # Rollback on error
+        print(f"Error while dropping tables: {error}")
+        logging.error(f"Error dropping tables: {error}")
+        conn.rollback()
+    finally:
+        conn.close()
+        logging.info("Database connection closed.")
 
 # To drop specific entries
 def delete_data(pdf_titles, *args, **kwargs):
@@ -334,6 +354,8 @@ def delete_data(pdf_titles, *args, **kwargs):
 
 # Main function (call this function and pass the list of pdf names)
 def append_pdfs(records_to_process, *args, **kwargs):
+    
+    create_database() # creates tables if not exists already
     
     if isinstance(records_to_process, str):
         records_to_process = [records_to_process] # Convert single string to list
