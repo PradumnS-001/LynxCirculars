@@ -233,7 +233,7 @@ except Exception as e:
 #############################################################################
 
 # To create the database tables
-def create_database():
+def create_database(*args, **kwargs):
     
     conn = _check_connection_and_connect(dbname=dbname, user=user, password=password, host=host, port=port)
     
@@ -270,7 +270,7 @@ def create_database():
         conn.rollback()
     
 # To completely delete the entire database
-def nuke_database():
+def nuke_database(*args, **kwargs):
     
     conn = _check_connection_and_connect(dbname=dbname, user=user, password=password, host=host, port=port)
     
@@ -292,11 +292,11 @@ def nuke_database():
         conn.rollback() # Rollback on error
 
 # To drop specific entries
-def delete_data(pdf_titles):
+def delete_data(pdf_titles, *args, **kwargs):
     
     if isinstance(pdf_titles, str):
         titles_to_delete = [pdf_titles] # Convert single string to list
-    elif isinstance(pdf_titles, list):
+    elif isinstance(pdf_titles, list[str]):
         titles_to_delete = pdf_titles
     else:
         print("Error: pdf_titles must be a string or a list of strings.")
@@ -333,7 +333,16 @@ def delete_data(pdf_titles):
         conn.rollback()
 
 # Main function (call this function and pass the list of pdf names)
-def append_pdfs(records_to_process):
+def append_pdfs(records_to_process, *args, **kwargs):
+    
+    if isinstance(records_to_process, str):
+        records_to_process = [records_to_process] # Convert single string to list
+    elif isinstance(records_to_process, list[str]):
+        records_to_process = records_to_process
+    else:
+        print("Error: pdf_titles must be a string or a list of strings.")
+        logging.error("Invalid type provided for pdf_titles in append_pdfs function.")
+        return
 
     # --- Connect to Database ---
     conn = _check_connection_and_connect(dbname=dbname, user=user, password=password, host=host, port=port)
